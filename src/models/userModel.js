@@ -9,6 +9,14 @@ const createUser = async (username, password) => {
     });
 };
 
+const findUserById = async (id) => {
+    return await prisma.user.findUnique({
+        where: {
+            id,
+        },
+    });
+};
+
 const findUserByUsername = async (username) => {
     return await prisma.user.findUnique({
         where: {
@@ -17,4 +25,4 @@ const findUserByUsername = async (username) => {
     });
 };
 
-module.exports = { createUser, findUserByUsername };
+module.exports = { createUser, findUserById, findUserByUsername };

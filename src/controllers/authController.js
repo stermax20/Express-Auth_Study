@@ -1,4 +1,4 @@
-const { createUser, findUserByUsername } = require('../models/userModel');
+const { createUser, findUserByUsername, findUserById } = require('../models/userModel');
 const { hashPassword, comparePassword } = require('../utils/bcrypt');
 const { generateToken } = require('../utils/jwt');
 
@@ -25,10 +25,30 @@ const login = async (req, res) => {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
         const token = generateToken(user);
-        res.json({ message: 'Logged in successfully', token });
+        res.setHeader('Authorization', `Bearer ${token}`);
+        res.json({
+            message: 'Logged in successfully',
+            token: token
+        });
     } catch (error) {
         res.status(500).json({ error: 'Error logging in' });
     }
 };
 
-module.exports = { register, login };
+const authenticate = async (req, res) => {
+    const user = req.user;
+    try {
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({
+            id: user.id,
+            username: user.username,
+            password: user.password
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Error retrieving user details' });
+    }
+};
+
+module.exports = { register, login, authenticate };
