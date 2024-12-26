@@ -1,12 +1,13 @@
-const { createUser, findUserByUsername, findUserById } = require('../models/userModel');
+const { createUser, findUserByUsername } = require('../repositories/userRepository');
 const { hashPassword, comparePassword } = require('../utils/bcrypt');
-const { generateToken } = require('../utils/jwt');
+const { generateAccessToken, generateRefreshToken, verifyToken } = require('../utils/jwt');
+const { saveRefreshToken, deleteRefreshToken, findRefreshToken } = require('../repositories/refreshTokenRepository');
 
 const register = async (req, res) => {
     const { username, password } = req.body;
     try {
         const hashedPassword = await hashPassword(password);
-        const user = await createUser(username, hashedPassword);
+        await createUser(username, hashedPassword);
         res.status(201).json({ message: 'User created successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Error creating user' });
@@ -20,35 +21,57 @@ const login = async (req, res) => {
         if (!user) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
+
         const isMatch = await comparePassword(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
-        const token = generateToken(user);
-        res.setHeader('Authorization', `Bearer ${token}`);
+
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+
+        await saveRefreshToken(user.id, refreshToken);
+
         res.json({
             message: 'Logged in successfully',
-            token: token
+            accessToken,
+            refreshToken,
         });
     } catch (error) {
         res.status(500).json({ error: 'Error logging in' });
     }
 };
 
-const authenticate = async (req, res) => {
-    const user = req.user;
+const refresh = async (req, res) => {
+    const refreshToken = req.headers['authorization']?.split(' ')[1];
+    if (!refreshToken) return res.status(401).json({ error: 'Refresh token required' });
+
     try {
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+        const storedToken = await findRefreshToken(refreshToken);
+        if (!storedToken) {
+            return res.status(403).json({ error: 'Invalid refresh token' });
         }
-        res.json({
-            id: user.id,
-            username: user.username,
-            password: user.password
-        });
+
+        const decoded = verifyToken(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const user = { id: decoded.id, username: decoded.username };
+        const newAccessToken = generateAccessToken(user);
+
+        res.json({ accessToken: newAccessToken });
     } catch (error) {
-        res.status(500).json({ error: 'Error retrieving user details' });
+        res.status(403).json({ error: 'Invalid or expired refresh token' });
     }
 };
 
-module.exports = { register, login, authenticate };
+const logout = async (req, res) => {
+    const refreshToken = req.headers['authorization']?.split(' ')[1];
+    if (!refreshToken) return res.status(401).json({ error: 'Refresh token required' });
+
+    try {
+        await deleteRefreshToken(refreshToken);
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Error logging out' });
+    }
+};
+
+module.exports = { register, login, refresh, logout };

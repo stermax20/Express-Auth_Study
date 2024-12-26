@@ -8,7 +8,16 @@ generator client {
 }
 
 model User {
-  id       Int      @id @default(autoincrement())
-  username String   @unique
-  password String
+    id        Int         @id @default(autoincrement())
+    username  String      @unique
+    password  String
+    refreshTokens RefreshToken[] @relation("UserRefreshTokens")
+}
+
+model RefreshToken {
+    id         Int      @id @default(autoincrement())
+    token      String   @unique
+    userId     Int
+    user       User     @relation("UserRefreshTokens", fields: [userId], references: [id])
+    createdAt  DateTime @default(now())
 }
